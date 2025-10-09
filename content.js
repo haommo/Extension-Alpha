@@ -1,4 +1,4 @@
-// ---------- content.js ----------
+//content.js
 const isBinanceDomain = /\.?binance\.com$/i.test(location.hostname);
 const isAlphaTokenPath = /^\/[^/]+\/alpha\/[^/]+\/[^/]+(?:\/|$)/.test(location.pathname);
 
@@ -18,7 +18,6 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     autoSellOffset: false,
     sellOffset: 1,
     autoConfirm: false,
-    // Min fields (no timer; set-on-price-change only)
     autoMinField: false,
     minFieldValue: ""
   };
@@ -40,17 +39,15 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     STATE.sellOffset = Number(s?.sellOffset || 1) || 1;
 
     STATE.autoConfirm = !!s.autoConfirm;
-
-    // Min fields flags (set khi price thay đổi)
     STATE.autoMinField = !!s?.autoMinField;
     STATE.minFieldValue = s?.minFieldValue || "";
 
     // (Re)start theo flags
     startSell(); // limitTotal có thể chạy độc lập
     STATE.autoConfirm ? startActionClick() : stopActionClick();
+    STATE.autoMinField ? startMin() : stopMin();
 
-    if (STATE.autoBuyOffset || STATE.autoSellOffset || STATE.autoMinField) {
-      // Bật watcher nếu cần (min fields cũng phụ thuộc vào thay đổi giá)
+    if (STATE.autoBuyOffset || STATE.autoSellOffset) {
       startPriceWatcher();
     } else {
       stopPriceWatcher();
@@ -142,21 +139,6 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function parseNumber(raw) { if (!raw) return NaN; return parseLocaleNumber(raw); }
   function formatLike(rawRef, num) { const ref = rawRef || ''; return formatNumberForRef(num, ref); }
 
-  // Helper đọc “Khả dụng”
-  function extractAvailableValueRaw() {
-    const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
-    for (const c of containers) {
-      if ((c.textContent || "").includes("Khả dụng")) {
-        const valueNode = c.querySelector(".text-PrimaryText");
-        if (!valueNode) continue;
-        const text = valueNode.textContent.trim();
-        const match = text.match(/[\d.,]+/);
-        if (match) return match[0];
-      }
-    }
-    return "";
-  }
-
   // ---------- LimitTotal logic ----------
   let sellTimer = null;
   let lastBuySourcePrice = null;
@@ -176,7 +158,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const sourceForTotal = (Number.isFinite(lastBuySourcePrice)) ? lastBuySourcePrice : parsedPrice;
 
     const outNum = STATE.autoLimitTotalSell
-      ? (applyTotalOffset ? (sourceForTotal - totalOff * 1e-8) : sourceForTotal)
+      ? (totalOff >= 1 ? (sourceForTotal - totalOff * 1e-8) : sourceForTotal)
       : parsedPrice;
 
     const out = formatLike(raw, outNum);
@@ -252,19 +234,30 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     console.log("[ActionClick] OFF");
   }
 
-  // ---------- Price watcher ----------
-  let priceWatcherTimer = null;
-  let observedPriceEl = null;
-  let suppressSet = false;
-  let lastSeenValue = null;
+  // ---------- Volume ----------
+  let minTimer = null;
+  function extractAvailableValueRaw() {
+    const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
+    for (const c of containers) {
+      if ((c.textContent || "").includes("Khả dụng")) {
+        const valueNode = c.querySelector(".text-PrimaryText");
+        if (!valueNode) continue;
+        const text = valueNode.textContent.trim();
+        const match = text.match(/[\d.,]+/);
+        if (match) return match[0];
+      }
+    }
+    return "";
+  }
 
-  // NEW: set min fields (Buy/Sell) chỉ khi limitPrice thay đổi
-  function applyMinFromPriceChange() {
-    if (!STATE.autoMinField) return;
+  function tickMin() {
+    if (STOPPED) return;
 
+    const isBuy = isBuyTabActive();
+    const isSell = isSellTabActive();
     const refSample = document.querySelector('#limitPrice')?.value ?? '';
 
-    if (isBuyTabActive()) {
+    if (isBuy) {
       const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
       if (!inputBuy) return;
       const rawUser = (STATE.minFieldValue || "").trim();
@@ -273,11 +266,10 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
       const out = formatNumberForRef(num, refSample || inputBuy.value || '');
       if (!out) return;
       setInputValue(inputBuy, out);
-      console.log("[MinFields] Set Buy total once due to price change:", out);
       return;
     }
 
-    if (isSellTabActive()) {
+    if (isSell) {
       const inputSell = document.querySelector('#limitAmount');
       if (!inputSell) return;
       const rawAvail = extractAvailableValueRaw();
@@ -287,10 +279,29 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
       const out = formatNumberForRef(num, refSample || inputSell.value || '');
       if (!out) return;
       setInputValue(inputSell, out);
-      console.log("[MinFields] Set Sell amount once due to price change:", out);
       return;
     }
   }
+
+  function startMin() {
+    if (STOPPED) return;
+    if (minTimer) return;
+    minTimer = setInterval(tickMin, 500);
+    tickMin();
+    console.log("[Set volume giao dịch] ON");
+  }
+  function stopMin() {
+    if (!minTimer) return;
+    clearInterval(minTimer);
+    minTimer = null;
+    console.log("[Set volume giao dịch] OFF");
+  }
+
+  // ---------- Price watcher ----------
+  let priceWatcherTimer = null;
+  let observedPriceEl = null;
+  let suppressSet = false;
+  let lastSeenValue = null;
 
   function applyRuleAndRecordSource(el, sourceRaw) {
     if (STOPPED) return;
@@ -319,7 +330,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     setInputValue(el, out);
     setTimeout(() => { suppressSet = false; }, 250);
 
-    // Nếu Buy active & limitTotal bật: set limitTotal ngay theo totalOff (độc lập với min fields)
+    // Nếu Buy active & limitTotal bật: set limitTotal ngay theo totalOff
     if (isBuyTabActive() && STATE.autoLimitTotalSell) {
       lastBuySourcePrice = price;
       const totalEl = document.querySelector('#limitTotal[placeholder="Lệnh bán giới hạn"]');
@@ -330,8 +341,18 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
       }
     }
 
-    // LƯU Ý: KHÔNG set #limitAmount liên tục nữa. Min fields sẽ được set ở applyMinFromPriceChange() khi giá đổi.
-    applyMinFromPriceChange(); // <- chạy đúng 1 lần theo thay đổi giá
+    // Nếu Sell active: set #limitAmount từ “Khả dụng”
+    if (isSellTabActive()) {
+      const inputSell = document.querySelector('#limitAmount');
+      const rawAvail = extractAvailableValueRaw();
+      if (inputSell && rawAvail) {
+        const num = parseLocaleNumber(rawAvail);
+        if (Number.isFinite(num)) {
+          const out2 = formatNumberForRef(num, el.value || '');
+          setInputValue(inputSell, out2);
+        }
+      }
+    }
 
     lastSeenValue = out;
     console.log("[PriceWatcher] applied rule (source->adjusted). source=", sourceRaw, " adjusted=", out);
@@ -397,14 +418,8 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
       const cur = existing.value ?? '';
       try {
         const price = parseNumber(cur);
-        // Nếu offsets bật và đang ở tab Buy/Sell, áp dụng ngay;
-        // Ngoài ra, nếu bật autoMinField, cũng set min fields ngay theo giá hiện tại.
-        const shouldApplyRule = (STATE.autoBuyOffset || STATE.autoSellOffset) && (isBuyTabActive() || isSellTabActive());
-        if (Number.isFinite(price) && price > 0 && shouldApplyRule) {
+        if (Number.isFinite(price) && price > 0 && (STATE.autoBuyOffset || STATE.autoSellOffset) && (isBuyTabActive() || isSellTabActive())) {
           applyRuleAndRecordSource(existing, cur);
-        } else if (STATE.autoMinField && (isBuyTabActive() || isSellTabActive())) {
-          // Không chờ rule; vẫn set min fields 1 lần theo giá hiện tại
-          applyMinFromPriceChange();
         }
       } catch (e) { }
     }
@@ -426,7 +441,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function hardStop() {
     STOPPED = true;
     stopActionClick();
-    // Không còn min timer
+    stopMin();
     stopPriceWatcher();
     stopSell();
     console.log("[AutoAlpha] HARD STOP — timers/listeners stopped and state cleared");
@@ -435,3 +450,4 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   // ---------- Start ----------
   loadStateForOrigin();
 }
+
