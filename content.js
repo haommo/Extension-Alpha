@@ -200,14 +200,18 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const now = Date.now();
 
     if (isBuyTabActive()) {
-      const btn = getElementByXpath(XPATH_CONFIRM);
-      if (btn && now - lastActionClickAt > ACTION_CLICK_COOLDOWN_MS) {
+    // Ưu tiên tìm nút 'Xác nhận' trước, nếu không có thì tìm nút 'Tiếp tục'
+    const btn = getElementByXpath(XPATH_CONFIRM) || getElementByXpath(XPATH_TIEP_TUC);
+
+    // Nếu tìm thấy một trong hai nút (btn có giá trị) và đã hết thời gian chờ
+    if (btn && now - lastActionClickAt > ACTION_CLICK_COOLDOWN_MS) {
         btn.click();
         lastActionClickAt = now;
-        console.log("[ActionClick] clicked 'Xác nhận'");
-      }
-      return;
+        // Ghi log chung cho cả hai trường hợp
+        console.log("[ActionClick] clicked 'Xác nhận' or 'Tiếp tục'");
     }
+    return;
+}
 
     if (isSellTabActive()) {
       const btn = getElementByXpath(XPATH_TIEP_TUC);
@@ -234,68 +238,77 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     console.log("[ActionClick] OFF");
   }
 
-  // ---------- Volume ----------
-  let minTimer = null;
-  function extractAvailableValueRaw() {
-    const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
-    for (const c of containers) {
-      if ((c.textContent || "").includes("Khả dụng")) {
-        const valueNode = c.querySelector(".text-PrimaryText");
-        if (!valueNode) continue;
-        const text = valueNode.textContent.trim();
-        const match = text.match(/[\d.,]+/);
-        if (match) return match[0];
-      }
-    }
-    return "";
-  }
-
-  function tickMin() {
-    if (STOPPED) return;
-
-    const isBuy = isBuyTabActive();
-    const isSell = isSellTabActive();
-    const refSample = document.querySelector('#limitPrice')?.value ?? '';
-
-    if (isBuy) {
-      const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
-      if (!inputBuy) return;
-      const rawUser = (STATE.minFieldValue || "").trim();
-      if (!rawUser) return;
-      const num = parseLocaleNumber(rawUser);
-      const out = formatNumberForRef(num, refSample || inputBuy.value || '');
-      if (!out) return;
-      setInputValue(inputBuy, out);
-      return;
-    }
-
-    if (isSell) {
-      const inputSell = document.querySelector('#limitAmount');
-      if (!inputSell) return;
-      const rawAvail = extractAvailableValueRaw();
-      if (!rawAvail) return;
-      const num = parseLocaleNumber(rawAvail);
-      if (!Number.isFinite(num)) return;
-      const out = formatNumberForRef(num, refSample || inputSell.value || '');
-      if (!out) return;
-      setInputValue(inputSell, out);
-      return;
+// ---------- Volume ----------
+let minTimer = null;
+function extractAvailableValueRaw() {
+  const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
+  for (const c of containers) {
+    if ((c.textContent || "").includes("Khả dụng")) {
+      const valueNode = c.querySelector(".text-PrimaryText");
+      if (!valueNode) continue;
+      const text = valueNode.textContent.trim();
+      const match = text.match(/[\d.,]+/);
+      if (match) return match[0];
     }
   }
+  return "";
+}
 
-  function startMin() {
-    if (STOPPED) return;
-    if (minTimer) return;
-    minTimer = setInterval(tickMin, 500);
-    tickMin();
-    console.log("[Set volume giao dịch] ON");
+// [CẢI TIẾN] Chỉ điền khi giá trị chưa được điền hoặc khác đi
+function tickMin() {
+  if (STOPPED) return;
+
+  const isBuy = isBuyTabActive();
+  const isSell = isSellTabActive();
+  const refSample = document.querySelector('#limitPrice')?.value ?? '';
+
+  if (isBuy) {
+    const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
+    if (!inputBuy) return;
+    const rawUser = (STATE.minFieldValue || "").trim();
+    if (!rawUser) return;
+    const num = parseLocaleNumber(rawUser);
+    const out = formatNumberForRef(num, refSample || inputBuy.value || '');
+    if (!out) return;
+
+    // <<< THAY ĐỔI CỐT LÕI: Chỉ set giá trị nếu nó khác với giá trị hiện tại
+    if (inputBuy.value === out) return;
+
+    setInputValue(inputBuy, out);
+    return;
   }
-  function stopMin() {
-    if (!minTimer) return;
-    clearInterval(minTimer);
-    minTimer = null;
-    console.log("[Set volume giao dịch] OFF");
+
+  if (isSell) {
+    const inputSell = document.querySelector('#limitAmount');
+    if (!inputSell) return;
+    const rawAvail = extractAvailableValueRaw();
+    if (!rawAvail) return;
+    const num = parseLocaleNumber(rawAvail);
+    if (!Number.isFinite(num)) return;
+    const out = formatNumberForRef(num, refSample || inputSell.value || '');
+    if (!out) return;
+
+    // <<< THAY ĐỔI CỐT LÕI: Chỉ set giá trị nếu nó khác với giá trị hiện tại
+    if (inputSell.value === out) return;
+    
+    setInputValue(inputSell, out);
+    return;
   }
+}
+
+function startMin() {
+  if (STOPPED) return;
+  if (minTimer) return;
+  minTimer = setInterval(tickMin, 500);
+  tickMin();
+  console.log("[Set volume giao dịch] ON");
+}
+function stopMin() {
+  if (!minTimer) return;
+  clearInterval(minTimer);
+  minTimer = null;
+  console.log("[Set volume giao dịch] OFF");
+}
 
   // ---------- Price watcher ----------
   let priceWatcherTimer = null;

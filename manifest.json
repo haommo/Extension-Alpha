@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Alpha Binanace",
-  "version": "1.8",
+  "version": "2.1",
   "description": "Auto set giá/volume và click action trên trang /alpha/*/* của Binance (chỉ inject trên pages mục tiêu).",
   "permissions": ["storage"],
   "host_permissions": [
