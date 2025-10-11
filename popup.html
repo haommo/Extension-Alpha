@@ -1,80 +1,84 @@
 <!doctype html>
 <html>
-
 <head>
-  <meta charset="utf-8" />
-  <title>Auto tools</title>
-  <link rel="stylesheet" href="popup.css" />
+    <meta charset="utf-8" />
+    <title>Auto tools</title>
+    <link rel="stylesheet" href="popup.css" />
 </head>
-
 <body>
-  <h1>Auto Alpha</h1>
+    <div class="header">
+        <div class="header-title">
+            <h1>Auto Alpha Binance</h1>
+        </div>
 
-  <!-- ) LimitPrice offsets: Buy (switch riêng) -->
-  <div class="row">
-    <label class="switch">
-      <input id="toggleBuyOffset" type="checkbox" />
-      <span class="slider"></span>
-    </label>
-    <span class="title">Set Giá (Buy)</span>
-    <div class="inline-input">
-      <input id="buyOffset" type="number" placeholder="≥ 1" value="1" min="1" class="inline-field" />
+        <div class="volume-checker">
+            <button id="checkVolumeBtn" class="btn btn-check">🚀 Check Volume</button>
+            <p id="volumeResult" class="result-display"></p>
+        </div>
     </div>
-  </div>
 
-  <!-- 1) LimitTotal rule -->
-  <div class="row">
-    <label class="switch">
-      <input id="toggleLimitTotalSell" type="checkbox" />
-      <span class="slider"></span>
-    </label>
-    <span class="title">Set Lệnh bán giới hạn</span>
-    <div class="inline-input">
-      <input id="totalOffset" type="number" placeholder="≥ 0" value="0" min="0" class="inline-field" />
+    <div class="main-content">
+        <section class="card">
+            <h2 class="section-title">Giá & Lệnh Giới Hạn</h2>
+            <div class="row">
+                <label class="switch">
+                    <input id="toggleBuyOffset" type="checkbox" />
+                    <span class="slider"></span>
+                </label>
+                <span class="title">Tăng giá Buy</span>
+                <div class="inline-input">
+                    <input id="buyOffset" type="number" placeholder="≥ 1" value="1" min="1" class="inline-field" />
+                </div>
+            </div>
+            <div class="row">
+                <label class="switch">
+                    <input id="toggleSellOffset" type="checkbox" />
+                    <span class="slider"></span>
+                </label>
+                <span class="title">Giảm giá Sell</span>
+                <div class="inline-input">
+                    <input id="sellOffset" type="number" placeholder="≥ 1" value="1" min="1" class="inline-field" />
+                </div>
+            </div>
+            <div class="row">
+                <label class="switch">
+                    <input id="toggleLimitTotalSell" type="checkbox" />
+                    <span class="slider"></span>
+                </label>
+                <span class="title">Giảm giá đảo ngược"</span>
+                <div class="inline-input">
+                    <input id="totalOffset" type="number" placeholder="≥ 0" value="0" min="0" class="inline-field" />
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 class="section-title">Khối Lượng & Thao Tác</h2>
+            <div class="row">
+                <label class="switch">
+                    <input id="toggleMinField" type="checkbox" />
+                    <span class="slider"></span>
+                </label>
+                <span class="title">Volume giao dịch</span>
+                <div class="inline-input">
+                    <input id="minFieldValue" type="text" placeholder="Vd: 0.123" class="inline-field" />
+                </div>
+            </div>
+            <div class="row">
+                <label class="switch">
+                    <input id="toggleConfirm" type="checkbox" />
+                    <span class="slider"></span>
+                </label>
+                <span class="title">Auto "Xác nhận / Tiếp tục"</span>
+            </div>
+            <hr class="card-divider">
+            <div class="btn-container">
+                <button id="btnSave" class="btn btn-save">Lưu Cài Đặt</button>
+                <button id="btnStop" class="btn btn-stop">Dừng & Xóa</button>
+            </div>
+        </section>
     </div>
-  </div>
 
-  <!-- 3) LimitPrice offsets: Sell (switch riêng) -->
-  <div class="row">
-    <label class="switch">
-      <input id="toggleSellOffset" type="checkbox" />
-      <span class="slider"></span>
-    </label>
-    <span class="title">Set giá (Sell)</span>
-    <div class="inline-input">
-      <input id="sellOffset" type="number" placeholder="≥ 1" value="1" min="1" class="inline-field" />
-    </div>
-  </div>
-
-  <!-- 4) Set volume giao dịch -->
-  <div class="row">
-    <label class="switch">
-      <input id="toggleMinField" type="checkbox" />
-      <span class="slider"></span>
-    </label>
-    <span class="title">Set volume giao dịch</span>
-    <div class="inline-input">
-      <input id="minFieldValue" type="text" placeholder="vd: 0.123 hoặc 0,123" class="inline-field" />
-    </div>
-  </div>
-
-  <!-- 5) Auto click -->
-  <div class="row">
-    <label class="switch">
-      <input id="toggleConfirm" type="checkbox" />
-      <span class="slider"></span>
-    </label>
-    <span class="title">Auto “Xác nhận/ Tiếp tục”</span>
-  </div>
-
-  <hr />
-
-  <button id="btnSave" class="save">Save</button>
-  <button id="btnStop" class="save" style="margin-top:8px; background:#e53935; border-color:#e53935;">Stop &
-    Clear</button>
-  <p class="hint">Cài đặt lưu theo domain. Stop sẽ tạm dừng và xóa cấu hình domain hiện tại.</p>
-
-  <script src="popup.js"></script>
+    <script src="popup.js"></script>
 </body>
-
 </html>

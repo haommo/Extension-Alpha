@@ -1,4 +1,5 @@
-//popup.js
+// popup.js (Toàn bộ file)
+
 function getOriginFromUrl(url) {
   try { return new URL(url).origin; } catch { return null; }
 }
@@ -10,19 +11,11 @@ async function loadState(origin) {
   return new Promise((resolve) => {
     chrome.storage.local.get([origin], (res) => {
       resolve(res[origin] || {
-        // LimitTotal
-        autoLimitTotalSell: false,
-        totalOffset: 0,
-        // LimitPrice (Buy/Sell)
-        autoBuyOffset: false,
-        buyOffset: 1,
-        autoSellOffset: false,
-        sellOffset: 1,
-        // Auto click
+        autoLimitTotalSell: false, totalOffset: 0,
+        autoBuyOffset: false, buyOffset: 1,
+        autoSellOffset: false, sellOffset: 1,
         autoConfirm: false,
-        // Volume
-        autoMinField: false,
-        minFieldValue: ""
+        autoMinField: false, minFieldValue: ""
       });
     });
   });
@@ -42,93 +35,81 @@ async function sendToTab(tabId, msg) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // refs
-  const toggleTotal   = document.getElementById("toggleLimitTotalSell");
+  // refs cho tính năng auto
+  const toggleTotal = document.getElementById("toggleLimitTotalSell");
   const totalOffsetEl = document.getElementById("totalOffset");
-  const totalInline   = totalOffsetEl ? totalOffsetEl.closest(".inline-input") : null;
-
-  const toggleBuy     = document.getElementById("toggleBuyOffset");
-  const buyOffsetEl   = document.getElementById("buyOffset");
-  const buyInline     = buyOffsetEl ? buyOffsetEl.closest(".inline-input") : null;
-
-  const toggleSell    = document.getElementById("toggleSellOffset");
-  const sellOffsetEl  = document.getElementById("sellOffset");
-  const sellInline    = sellOffsetEl ? sellOffsetEl.closest(".inline-input") : null;
-
-  const toggleMin     = document.getElementById("toggleMinField");
-  const minValueEl    = document.getElementById("minFieldValue");
-  const minInline     = minValueEl ? minValueEl.closest(".inline-input") : null;
-
+  const toggleBuy = document.getElementById("toggleBuyOffset");
+  const buyOffsetEl = document.getElementById("buyOffset");
+  const toggleSell = document.getElementById("toggleSellOffset");
+  const sellOffsetEl = document.getElementById("sellOffset");
+  const toggleMin = document.getElementById("toggleMinField");
+  const minValueEl = document.getElementById("minFieldValue");
   const toggleConfirm = document.getElementById("toggleConfirm");
+  const btnSave = document.getElementById("btnSave");
+  const btnStop = document.getElementById("btnStop");
 
-  const btnSave       = document.getElementById("btnSave");
-  const btnStop       = document.getElementById("btnStop");
+  // Refs cho tính năng check volume
+  const checkVolumeBtn = document.getElementById("checkVolumeBtn");
+  const volumeResultEl = document.getElementById("volumeResult");
+
 
   let tab = null;
-  try { tab = await getActiveTab(); } catch {}
+  try { tab = await getActiveTab(); } catch { }
   const origin = getOriginFromUrl(tab?.url || location.origin) || location.origin;
   const state = await loadState(origin);
 
-  // INIT UI
-  if (toggleTotal)     toggleTotal.checked = !!state.autoLimitTotalSell;
-  if (totalOffsetEl)   totalOffsetEl.value = Number((state.totalOffset ?? 0));
-  if (totalInline)     totalInline.classList.toggle("hide", !(toggleTotal && toggleTotal.checked));
-
-  if (toggleBuy)       toggleBuy.checked   = !!state.autoBuyOffset;
-  if (buyOffsetEl)     buyOffsetEl.value   = Number(state.buyOffset || 1);
-  if (buyInline)       buyInline.classList.toggle("hide", !(toggleBuy && toggleBuy.checked));
-
-  if (toggleSell)      toggleSell.checked  = !!state.autoSellOffset;
-  if (sellOffsetEl)    sellOffsetEl.value  = Number(state.sellOffset || 1);
-  if (sellInline)      sellInline.classList.toggle("hide", !(toggleSell && toggleSell.checked));
-
-  if (toggleMin)       toggleMin.checked   = !!state.autoMinField;
-  if (minValueEl)      minValueEl.value    = state.minFieldValue || "";
-  if (minInline)       minInline.classList.toggle("hide", !(toggleMin && toggleMin.checked));
-
-  if (toggleConfirm)   toggleConfirm.checked = !!state.autoConfirm;
+  // INIT UI (Phần này giữ nguyên)
+  // ... (Toàn bộ phần init UI và toggle show/hide inline giữ nguyên)
+  if (toggleTotal) toggleTotal.checked = !!state.autoLimitTotalSell;
+  if (totalOffsetEl) totalOffsetEl.value = Number((state.totalOffset ?? 0));
+  if (toggleBuy) toggleBuy.checked = !!state.autoBuyOffset;
+  if (buyOffsetEl) buyOffsetEl.value = Number(state.buyOffset || 1);
+  if (toggleSell) toggleSell.checked = !!state.autoSellOffset;
+  if (sellOffsetEl) sellOffsetEl.value = Number(state.sellOffset || 1);
+  if (toggleMin) toggleMin.checked = !!state.autoMinField;
+  if (minValueEl) minValueEl.value = state.minFieldValue || "";
+  if (toggleConfirm) toggleConfirm.checked = !!state.autoConfirm;
 
   // Toggle show/hide inline
-  toggleTotal?.addEventListener("change", () => {
-    totalInline?.classList.toggle("hide", !toggleTotal.checked);
-  });
-  toggleBuy?.addEventListener("change", () => {
-    buyInline?.classList.toggle("hide", !toggleBuy.checked);
-  });
-  toggleSell?.addEventListener("change", () => {
-    sellInline?.classList.toggle("hide", !toggleSell.checked);
-  });
-  toggleMin?.addEventListener("change", () => {
-    minInline?.classList.toggle("hide", !toggleMin.checked);
-  });
+  function setupToggle(toggle, el) {
+    if(!toggle || !el) return;
+    const inline = el.closest(".inline-input");
+    if(!inline) return;
+    inline.classList.toggle("hide", !toggle.checked);
+    toggle.addEventListener("change", () => {
+        inline.classList.toggle("hide", !toggle.checked);
+    });
+  }
+  setupToggle(toggleTotal, totalOffsetEl);
+  setupToggle(toggleBuy, buyOffsetEl);
+  setupToggle(toggleSell, sellOffsetEl);
+  setupToggle(toggleMin, minValueEl);
+  
 
-  // SAVE
+  // SAVE (Giữ nguyên)
   btnSave?.addEventListener("click", async () => {
+    // ... (logic nút save giữ nguyên)
     for (const el of [totalOffsetEl, buyOffsetEl, sellOffsetEl]) {
       el?.classList.remove("invalid");
       el?.removeAttribute("title");
     }
-
     let totalOffset = parseInt(totalOffsetEl?.value ?? "0", 10);
-    let buyOffset   = parseInt(buyOffsetEl?.value   ?? "1", 10);
-    let sellOffset  = parseInt(sellOffsetEl?.value  ?? "1", 10);
-
+    let buyOffset = parseInt(buyOffsetEl?.value ?? "1", 10);
+    let sellOffset = parseInt(sellOffsetEl?.value ?? "1", 10);
     const invalids = [];
     if (!Number.isFinite(totalOffset) || totalOffset < 0) invalids.push(totalOffsetEl);
-    if (!Number.isFinite(buyOffset)   || buyOffset   < 1) invalids.push(buyOffsetEl);
-    if (!Number.isFinite(sellOffset)  || sellOffset  < 1) invalids.push(sellOffsetEl);
-
+    if (!Number.isFinite(buyOffset) || buyOffset < 1) invalids.push(buyOffsetEl);
+    if (!Number.isFinite(sellOffset) || sellOffset < 1) invalids.push(sellOffsetEl);
     if (invalids.length) {
       for (const el of invalids) {
         if (!el) continue;
         el.classList.add("invalid");
-        el.setAttribute("title", "Giá trị phải ≥ 1");
+        el.setAttribute("title", "Giá trị không hợp lệ");
       }
       alert("Buy/Sell offset phải ≥ 1; Total offset phải ≥ 0");
       invalids[0]?.focus();
       return;
     }
-
     const newState = {
       autoLimitTotalSell: !!toggleTotal?.checked,
       totalOffset,
@@ -140,24 +121,67 @@ document.addEventListener("DOMContentLoaded", async () => {
       autoMinField: !!toggleMin?.checked,
       minFieldValue: (minValueEl?.value || "").trim()
     };
-
     await saveState(origin, newState);
     if (tab?.id) await sendToTab(tab.id, { type: "APPLY_ALL", state: newState, origin });
-
-    btnSave.textContent = "Saved ✓";
-    chrome.tabs.reload(tab.id);
-    setTimeout(() => (btnSave.textContent = "Save"), 1200);
+    btnSave.textContent = "Đã lưu ✓";
+    if (tab?.id) chrome.tabs.reload(tab.id);
+    setTimeout(() => (btnSave.textContent = "Lưu Cài Đặt"), 1500);
   });
 
-  // STOP & CLEAR
+  // STOP & CLEAR (Giữ nguyên)
   btnStop?.addEventListener("click", async () => {
-    await removeState(origin); // xóa cấu hình domain
+    // ... (logic nút stop giữ nguyên)
+    await removeState(origin);
     if (tab?.id) await sendToTab(tab.id, { type: "STOP", origin });
-    btnStop.textContent = "Stopped ✓";
-    chrome.tabs.reload(tab.id);
-    setTimeout(() => (btnStop.textContent = "Stop & Clear"), 1200);
+    btnStop.textContent = "Đã dừng ✓";
+    if (tab?.id) chrome.tabs.reload(tab.id);
+    setTimeout(() => (btnStop.textContent = "Dừng & Xóa"), 1500);
   });
-
-  // Đồng bộ lần đầu
+  
+  // Đồng bộ lần đầu (Giữ nguyên)
   if (tab?.id) await sendToTab(tab.id, { type: "SYNC_STATE", state, origin });
+
+
+  // LOGIC MỚI CHO NÚT CHECK VOLUME
+  checkVolumeBtn?.addEventListener("click", async () => {
+    if (!tab?.id) {
+        alert("Không tìm thấy tab đang hoạt động.");
+        return;
+    }
+    
+    // Set trạng thái loading
+    checkVolumeBtn.innerText = "⏳ Đang check...";
+    checkVolumeBtn.disabled = true;
+    volumeResultEl.style.display = "none";
+    volumeResultEl.className = "result-display"; // reset class
+
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["check-volume.js"]
+    }, (results) => {
+      // Reset nút lại khi xong
+      checkVolumeBtn.innerText = "🚀 Check Volume Hôm Nay";
+      checkVolumeBtn.disabled = false;
+
+      if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError.message);
+          volumeResultEl.innerText = "❌ Lỗi: " + chrome.runtime.lastError.message;
+          volumeResultEl.className = "result-display error";
+          volumeResultEl.style.display = "block";
+          return;
+      }
+      
+      if (results && results[0] && results[0].result !== null && results[0].result !== undefined) {
+        let total = results[0].result;
+        // Nhân 4 ở đây
+        let finalTotal = total * 4; 
+        volumeResultEl.innerText = "⭐ Tổng Volume:" + finalTotal.toLocaleString("vi-VN") + " USDT";
+        volumeResultEl.className = "result-display success";
+      } else {
+        volumeResultEl.innerText = "❌ Không lấy được dữ liệu. Hãy đảm bảo bạn đang ở trang có lịch sử lệnh.";
+        volumeResultEl.className = "result-display error";
+      }
+      volumeResultEl.style.display = "block";
+    });
+  });
 });

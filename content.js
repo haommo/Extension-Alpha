@@ -27,7 +27,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function originKey() { return location.origin; }
 
   function applySavedState(s) {
-    if (STOPPED) return; // khi đã stop, không tự start lại
+    if (STOPPED) return; 
 
     STATE.autoLimitTotalSell = !!s.autoLimitTotalSell;
     STATE.totalOffset = Number(s?.totalOffset ?? 0) || 0;
@@ -57,7 +57,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function loadStateForOrigin() {
     chrome.storage.local.get([originKey()], (res) => {
       const st = res[originKey()];
-      if (!st) return; // không có cấu hình => không auto-start
+      if (!st) return; 
       applySavedState(st || {});
     });
   }
@@ -68,7 +68,6 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     if (!changes[key]) return;
     const newVal = changes[key].newValue;
     if (!newVal) {
-      // bị remove (Stop & Clear)
       hardStop();
       return;
     }
@@ -200,14 +199,10 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const now = Date.now();
 
     if (isBuyTabActive()) {
-    // Ưu tiên tìm nút 'Xác nhận' trước, nếu không có thì tìm nút 'Tiếp tục'
     const btn = getElementByXpath(XPATH_CONFIRM) || getElementByXpath(XPATH_TIEP_TUC);
-
-    // Nếu tìm thấy một trong hai nút (btn có giá trị) và đã hết thời gian chờ
     if (btn && now - lastActionClickAt > ACTION_CLICK_COOLDOWN_MS) {
         btn.click();
         lastActionClickAt = now;
-        // Ghi log chung cho cả hai trường hợp
         console.log("[ActionClick] clicked 'Xác nhận' or 'Tiếp tục'");
     }
     return;
@@ -254,7 +249,6 @@ function extractAvailableValueRaw() {
   return "";
 }
 
-// [CẢI TIẾN] Chỉ điền khi giá trị chưa được điền hoặc khác đi
 function tickMin() {
   if (STOPPED) return;
 
@@ -270,8 +264,6 @@ function tickMin() {
     const num = parseLocaleNumber(rawUser);
     const out = formatNumberForRef(num, refSample || inputBuy.value || '');
     if (!out) return;
-
-    // <<< THAY ĐỔI CỐT LÕI: Chỉ set giá trị nếu nó khác với giá trị hiện tại
     if (inputBuy.value === out) return;
 
     setInputValue(inputBuy, out);
@@ -287,8 +279,6 @@ function tickMin() {
     if (!Number.isFinite(num)) return;
     const out = formatNumberForRef(num, refSample || inputSell.value || '');
     if (!out) return;
-
-    // <<< THAY ĐỔI CỐT LÕI: Chỉ set giá trị nếu nó khác với giá trị hiện tại
     if (inputSell.value === out) return;
     
     setInputValue(inputSell, out);
