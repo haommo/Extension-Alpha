@@ -1,4 +1,3 @@
-// check-volume.js
 (async function () {
   function delay(ms) {
     return new Promise(res => setTimeout(res, ms));
@@ -27,10 +26,24 @@
     return isNaN(n) ? 0 : n;
   }
 
-  function isToday(datetimeStr) {
-    if (!datetimeStr) return false;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    return datetimeStr.trim().startsWith(todayStr);
+  // *** HÀM MỚI: Chuyển đổi chuỗi ngày giờ của Binance thành đối tượng Date ***
+  function parseDate(datetimeStr) {
+    if (!datetimeStr) return null;
+    try {
+      const [dateStr, timeStr] = datetimeStr.trim().split(' ');
+      if (!dateStr || !timeStr) return null;
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const [hour, minute, second] = timeStr.split(':').map(Number);
+      // Kiểm tra nếu bất kỳ phần nào không phải là số
+      if ([year, month, day, hour, minute, second].some(isNaN)) return null;
+      // Date constructor dùng tháng 0-indexed
+      const d = new Date(year, month - 1, day, hour, minute, second);
+      if (isNaN(d.getTime())) return null; // Kiểm tra ngày không hợp lệ
+      return d;
+    } catch (e) {
+      console.warn('Lỗi parse ngày:', datetimeStr, e);
+      return null;
+    }
   }
 
   function getRows() {
@@ -72,7 +85,7 @@
     }
   }
 
-  async function sumTodayBuyVolume() {
+  async function sumTodayBuyVolume(startTime, endTime) {
     let total = 0;
     for (const row of getRows()) {
       const datetime = row.querySelector('td[aria-colindex="1"]')?.innerText.trim();
@@ -81,21 +94,44 @@
       const status = row.querySelector('td[aria-colindex="11"] div')?.innerText.trim();
 
       if (!datetime || !volumeTxt) continue;
-      if (isToday(datetime) && loai === "Mua" && (status === "Đã khớp" || status === "Khớp một phần")) {
+
+      const rowDate = parseDate(datetime);
+      if (!rowDate) continue; 
+
+      if (
+        rowDate >= startTime &&
+        rowDate < endTime &&
+        loai === "Mua" &&
+        (status === "Đã khớp" || status === "Khớp một phần")
+      ) {
         total += parseVolume(volumeTxt);
       }
     }
     return total;
   }
 
-  // --- Main ---
+
+  const CUTOFF_HOUR = 7; // 7:00 AM
+  const now = new Date(); // Thời gian check hiện tại
+
+  let endTime = new Date(now);
+  endTime.setHours(CUTOFF_HOUR, 0, 0, 0); // Đặt mốc 7:00:00
+
+  if (now.getHours() >= CUTOFF_HOUR) {
+    endTime.setDate(endTime.getDate() + 1);
+  }
+ 
+  let startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+
   if (!clickLichSu()) {
     console.log("Không tìm thấy tab 'Lịch sử đặt lệnh'");
-    return null; 
+    return null;
   }
 
-  await delay(1500);
+  await delay(2000);
   await loadAllRowsByScroll();
-  const totalVolume = await sumTodayBuyVolume();
+
+  // *** CẬP NHẬT: Truyền startTime và endTime vào hàm ***
+  const totalVolume = await sumTodayBuyVolume(startTime, endTime);
   return totalVolume;
 })();

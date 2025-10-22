@@ -27,7 +27,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function originKey() { return location.origin; }
 
   function applySavedState(s) {
-    if (STOPPED) return; 
+    if (STOPPED) return;
 
     STATE.autoLimitTotalSell = !!s.autoLimitTotalSell;
     STATE.totalOffset = Number(s?.totalOffset ?? 0) || 0;
@@ -45,6 +45,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     // (Re)start theo flags
     startSell(); // limitTotal có thể chạy độc lập
     STATE.autoConfirm ? startActionClick() : stopActionClick();
+    // *** ĐÃ KHÔI PHỤC startMin/stopMin ***
     STATE.autoMinField ? startMin() : stopMin();
 
     if (STATE.autoBuyOffset || STATE.autoSellOffset) {
@@ -57,7 +58,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
   function loadStateForOrigin() {
     chrome.storage.local.get([originKey()], (res) => {
       const st = res[originKey()];
-      if (!st) return; 
+      if (!st) return;
       applySavedState(st || {});
     });
   }
@@ -144,6 +145,8 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
 
   function tickSell() {
     if (STOPPED) return;
+    if (isBuyTabActive()) return; // Ngăn chạy ở tab Mua
+
     const priceInput = document.querySelector("#limitPrice");
     const totalSell = document.querySelector('#limitTotal[placeholder="Lệnh bán giới hạn"]');
     if (!priceInput || !totalSell) return;
@@ -199,14 +202,14 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const now = Date.now();
 
     if (isBuyTabActive()) {
-    const btn = getElementByXpath(XPATH_CONFIRM) || getElementByXpath(XPATH_TIEP_TUC);
-    if (btn && now - lastActionClickAt > ACTION_CLICK_COOLDOWN_MS) {
+      const btn = getElementByXpath(XPATH_CONFIRM) || getElementByXpath(XPATH_TIEP_TUC);
+      if (btn && now - lastActionClickAt > ACTION_CLICK_COOLDOWN_MS) {
         btn.click();
         lastActionClickAt = now;
         console.log("[ActionClick] clicked 'Xác nhận' or 'Tiếp tục'");
+      }
+      return;
     }
-    return;
-}
 
     if (isSellTabActive()) {
       const btn = getElementByXpath(XPATH_TIEP_TUC);
@@ -233,81 +236,119 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     console.log("[ActionClick] OFF");
   }
 
-// ---------- Volume ----------
-let minTimer = null;
-function extractAvailableValueRaw() {
-  const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
-  for (const c of containers) {
-    if ((c.textContent || "").includes("Khả dụng")) {
-      const valueNode = c.querySelector(".text-PrimaryText");
-      if (!valueNode) continue;
-      const text = valueNode.textContent.trim();
-      const match = text.match(/[\d.,]+/);
-      if (match) return match[0];
+  // ---------- Volume ----------
+  // *** TOÀN BỘ KHỐI NÀY ĐÃ ĐƯỢC KHÔI PHỤC VÀ CẬP NHẬT ***
+  let minTimer = null;
+  function extractAvailableValueRaw() {
+    const containers = document.querySelectorAll(".bn-flex.text-TertiaryText.items-center.justify-between.w-full");
+    for (const c of containers) {
+      if ((c.textContent || "").includes("Khả dụng")) {
+        const valueNode = c.querySelector(".text-PrimaryText");
+        if (!valueNode) continue;
+        const text = valueNode.textContent.trim();
+        const match = text.match(/[\d.,]+/);
+        if (match) return match[0];
+      }
+    }
+    return "";
+  }
+
+  function tickMin() {
+    if (STOPPED) return;
+
+    // GIẢI PHÁP: Nếu người dùng đang gõ vào BẤT KỲ ô input/textarea nào, hãy dừng lại
+    if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) {
+      return;
+    }
+
+    const isBuy = isBuyTabActive();
+    const isSell = isSellTabActive();
+    const refSample = document.querySelector('#limitPrice')?.value ?? '';
+
+    // --- LOGIC MUA ---
+    if (isBuy) {
+      const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
+      if (!inputBuy) return;
+
+      // Lấy giá trị auto-fill (minFieldValue)
+      const rawUser = (STATE.minFieldValue || "").trim();
+      if (!rawUser) return; // Không có giá trị min thì không làm gì
+      const numUser = parseLocaleNumber(rawUser);
+      const out = formatNumberForRef(numUser, refSample || inputBuy.value || '');
+      if (!out) return;
+
+      // Chỉ set nếu giá trị hiện tại KHÁC giá trị mong muốn
+      if (inputBuy.value !== out) {
+        setInputValue(inputBuy, out);
+      }
+      return;
+    }
+
+    // --- LOGIC BÁN (So sánh 2 chữ số thập phân) ---
+    if (isSell) {
+      const inputSell = document.querySelector('#limitAmount');
+      if (!inputSell) return;
+
+      // Lấy giá trị auto-fill (Available)
+      const rawAvail = extractAvailableValueRaw();
+      if (!rawAvail) return;
+      const numAvail = parseLocaleNumber(rawAvail); // e.g., 0.047745
+      if (!Number.isFinite(numAvail)) return;
+      const out = formatNumberForRef(numAvail, refSample || inputSell.value || ''); // String đầy đủ
+      if (!out) return;
+
+      // Lấy giá trị hiện tại
+      const currentValNum = parseLocaleNumber(inputSell.value); // e.g., 0.04
+
+      let shouldOverwrite = false;
+
+      if (!Number.isFinite(currentValNum)) {
+        // Nếu giá trị hiện tại không phải là số (trống, "abc", v.v.)
+        shouldOverwrite = true;
+      } else {
+        // So sánh giá trị sau khi đã làm tròn xuống 2 chữ số thập phân
+        const availFloored = Math.floor(numAvail * 100);
+        const currentFloored = Math.floor(currentValNum * 100);
+
+        if (availFloored !== currentFloored) {
+          shouldOverwrite = true;
+        }
+      }
+
+      if (shouldOverwrite && inputSell.value !== out) {
+        setInputValue(inputSell, out);
+      }
+      return;
     }
   }
-  return "";
-}
 
-function tickMin() {
-  if (STOPPED) return;
-
-  const isBuy = isBuyTabActive();
-  const isSell = isSellTabActive();
-  const refSample = document.querySelector('#limitPrice')?.value ?? '';
-
-  if (isBuy) {
-    const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
-    if (!inputBuy) return;
-    const rawUser = (STATE.minFieldValue || "").trim();
-    if (!rawUser) return;
-    const num = parseLocaleNumber(rawUser);
-    const out = formatNumberForRef(num, refSample || inputBuy.value || '');
-    if (!out) return;
-    if (inputBuy.value === out) return;
-
-    setInputValue(inputBuy, out);
-    return;
+  function startMin() {
+    if (STOPPED) return;
+    if (minTimer) return;
+    minTimer = setInterval(tickMin, 500);
+    tickMin();
+    console.log("[Set volume giao dịch] ON");
   }
 
-  if (isSell) {
-    const inputSell = document.querySelector('#limitAmount');
-    if (!inputSell) return;
-    const rawAvail = extractAvailableValueRaw();
-    if (!rawAvail) return;
-    const num = parseLocaleNumber(rawAvail);
-    if (!Number.isFinite(num)) return;
-    const out = formatNumberForRef(num, refSample || inputSell.value || '');
-    if (!out) return;
-    if (inputSell.value === out) return;
-    
-    setInputValue(inputSell, out);
-    return;
+  function stopMin() {
+    if (!minTimer) return;
+    clearInterval(minTimer);
+    minTimer = null;
+    console.log("[Set volume giao dịch] OFF");
   }
-}
+  // *** KẾT THÚC KHỐI KHÔI PHỤC ***
 
-function startMin() {
-  if (STOPPED) return;
-  if (minTimer) return;
-  minTimer = setInterval(tickMin, 500);
-  tickMin();
-  console.log("[Set volume giao dịch] ON");
-}
-function stopMin() {
-  if (!minTimer) return;
-  clearInterval(minTimer);
-  minTimer = null;
-  console.log("[Set volume giao dịch] OFF");
-}
 
   // ---------- Price watcher ----------
   let priceWatcherTimer = null;
-  let observedPriceEl = null;
+  let observedSourceEl = null;
   let suppressSet = false;
   let lastSeenValue = null;
 
-  function applyRuleAndRecordSource(el, sourceRaw) {
+  // *** HÀM ĐÃ ĐƯỢC CẬP NHẬT (Đã xóa logic Volume) ***
+  function applyRuleAndRecordSource(sourceEl, sourceRaw) {
     if (STOPPED) return;
+    if (!sourceEl) return;
 
     const price = parseNumber(sourceRaw);
     if (!Number.isFinite(price) || price <= 0) return;
@@ -316,74 +357,78 @@ function stopMin() {
     const sellOff = Math.max(1, Number(STATE.sellOffset || 1));
     const totalOff = Number(STATE.totalOffset ?? 0);
 
-    // limitPrice theo flag & tab
-    let desiredNum;
     if (isBuyTabActive() && STATE.autoBuyOffset) {
-      desiredNum = price + buyOff * 1e-8;
+      const targetPriceEl = document.querySelector("#limitPrice");
+      if (!targetPriceEl) return;
+
+      const desiredPriceNum = price + buyOff * 1e-8;
+      const desiredTotalNum = price - totalOff * 1e-8;
+
+      const outPrice = formatLike(sourceRaw, desiredPriceNum);
+      const outTotal = formatLike(sourceRaw, desiredTotalNum);
+
+      suppressSet = true;
+      setInputValue(targetPriceEl, outPrice);
+      setInputValue(sourceEl, outTotal);
+      setTimeout(() => { suppressSet = false; }, 250);
+
+      // *** ĐÃ XÓA logic volume (mua) tích hợp ***
+
+      lastSeenValue = outTotal;
+      console.log("[PriceWatcher] applied rule (Buy). source=", sourceRaw, " priceSet=", outPrice, " totalSet=", outTotal);
+
     } else if (isSellTabActive() && STATE.autoSellOffset) {
-      desiredNum = price - sellOff * 1e-8;
+      const desiredNum = price - sellOff * 1e-8;
+      const out = formatLike(sourceRaw, desiredNum);
+
+      suppressSet = true;
+      setInputValue(sourceEl, out);
+      setTimeout(() => { suppressSet = false; }, 250);
+
+      // *** ĐÃ XÓA logic volume (bán) tích hợp ***
+
+      lastSeenValue = out;
+      console.log("[PriceWatcher] applied rule (Sell). source=", sourceRaw, " adjusted=", out);
+
     } else {
-      desiredNum = price;
+      lastSeenValue = sourceRaw;
+      return;
     }
-
-    const out = formatLike(sourceRaw, desiredNum);
-
-    // set price input
-    suppressSet = true;
-    setInputValue(el, out);
-    setTimeout(() => { suppressSet = false; }, 250);
-
-    // Nếu Buy active & limitTotal bật: set limitTotal ngay theo totalOff
-    if (isBuyTabActive() && STATE.autoLimitTotalSell) {
-      lastBuySourcePrice = price;
-      const totalEl = document.querySelector('#limitTotal[placeholder="Lệnh bán giới hạn"]');
-      if (totalEl) {
-        const totalNum = totalOff >= 1 ? (price - totalOff * 1e-8) : price;
-        const totalOut = formatLike(sourceRaw, totalNum);
-        setInputValue(totalEl, totalOut);
-      }
-    }
-
-    // Nếu Sell active: set #limitAmount từ “Khả dụng”
-    if (isSellTabActive()) {
-      const inputSell = document.querySelector('#limitAmount');
-      const rawAvail = extractAvailableValueRaw();
-      if (inputSell && rawAvail) {
-        const num = parseLocaleNumber(rawAvail);
-        if (Number.isFinite(num)) {
-          const out2 = formatNumberForRef(num, el.value || '');
-          setInputValue(inputSell, out2);
-        }
-      }
-    }
-
-    lastSeenValue = out;
-    console.log("[PriceWatcher] applied rule (source->adjusted). source=", sourceRaw, " adjusted=", out);
   }
 
-  function ensureObservedPriceEl() {
-    const el = document.querySelector("#limitPrice");
-    if (!el) return null;
-    if (observedPriceEl !== el) {
-      try { if (observedPriceEl) observedPriceEl.removeEventListener("input", onPriceInput); } catch (e) { }
-      observedPriceEl = el;
-      observedPriceEl.addEventListener("input", onPriceInput, { passive: true });
-      lastSeenValue = el.value ?? null;
+  function ensureObservedSourceEl() {
+    let sourceSelector = null;
+    if (isBuyTabActive() && STATE.autoBuyOffset) {
+      sourceSelector = '#limitTotal[placeholder="Lệnh bán giới hạn"]';
+    } else if (isSellTabActive() && STATE.autoSellOffset) {
+      sourceSelector = "#limitPrice";
     }
-    return observedPriceEl;
+
+    const newSourceEl = sourceSelector ? document.querySelector(sourceSelector) : null;
+
+    if (observedSourceEl !== newSourceEl) {
+      try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
+
+      observedSourceEl = newSourceEl;
+
+      if (observedSourceEl) {
+        observedSourceEl.addEventListener("input", onSourceInput, { passive: true });
+        lastSeenValue = observedSourceEl.value ?? null;
+      } else {
+        lastSeenValue = null;
+      }
+    }
+    return observedSourceEl;
   }
 
-  function onPriceInput(e) {
+  function onSourceInput(e) {
     if (STOPPED) return;
     if (suppressSet) return;
     const el = e.target;
     if (!el) return;
     const cur = el.value ?? '';
     if (cur === lastSeenValue) return;
-    if (!isBuyTabActive() && !isSellTabActive()) {
-      lastSeenValue = cur;
-      return;
-    }
+
     applyRuleAndRecordSource(el, cur);
   }
 
@@ -394,46 +439,49 @@ function stopMin() {
     priceWatcherTimer = setInterval(() => {
       try {
         if (STOPPED) return;
-        const el = ensureObservedPriceEl();
-        if (!el) {
+
+        const sourceEl = ensureObservedSourceEl();
+
+        if (!sourceEl) {
           lastSeenValue = null;
-          lastBuySourcePrice = null;
           return;
         }
-        if (!isBuyTabActive() && !isSellTabActive()) {
-          lastSeenValue = el.value ?? lastSeenValue;
+
+        if (!((isBuyTabActive() && STATE.autoBuyOffset) || (isSellTabActive() && STATE.autoSellOffset))) {
+          lastSeenValue = sourceEl.value ?? lastSeenValue;
           return;
         }
-        const cur = el.value ?? '';
+
+        const cur = sourceEl.value ?? '';
         if (suppressSet) return;
         if (cur === lastSeenValue) return;
-        applyRuleAndRecordSource(el, cur);
+
+        applyRuleAndRecordSource(sourceEl, cur);
+
       } catch (err) {
         console.warn("[PriceWatcher] poll error", err);
       }
     }, 300);
 
-    const existing = document.querySelector("#limitPrice");
-    if (existing) {
-      observedPriceEl = existing;
-      observedPriceEl.addEventListener("input", onPriceInput, { passive: true });
-      lastSeenValue = existing.value ?? null;
-      const cur = existing.value ?? '';
+    const initialSourceEl = ensureObservedSourceEl();
+    if (initialSourceEl) {
       try {
+        const cur = initialSourceEl.value ?? '';
         const price = parseNumber(cur);
-        if (Number.isFinite(price) && price > 0 && (STATE.autoBuyOffset || STATE.autoSellOffset) && (isBuyTabActive() || isSellTabActive())) {
-          applyRuleAndRecordSource(existing, cur);
+        if (Number.isFinite(price) && price > 0) {
+          applyRuleAndRecordSource(initialSourceEl, cur);
         }
       } catch (e) { }
     }
 
     console.log("[PriceWatcher] started (restricted to /alpha/ token pages)");
+    D
   }
 
   function stopPriceWatcher() {
     if (priceWatcherTimer) { clearInterval(priceWatcherTimer); priceWatcherTimer = null; }
-    try { if (observedPriceEl) observedPriceEl.removeEventListener("input", onPriceInput); } catch (e) { }
-    observedPriceEl = null;
+    try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
+    observedSourceEl = null;
     suppressSet = false;
     lastSeenValue = null;
     lastBuySourcePrice = null;
@@ -444,6 +492,7 @@ function stopMin() {
   function hardStop() {
     STOPPED = true;
     stopActionClick();
+    // *** ĐÃ KHÔI PHỤC stopMin() ***
     stopMin();
     stopPriceWatcher();
     stopSell();
@@ -453,4 +502,3 @@ function stopMin() {
   // ---------- Start ----------
   loadStateForOrigin();
 }
-
