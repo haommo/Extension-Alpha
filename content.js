@@ -260,7 +260,7 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const isBuy = isBuyTabActive();
     const isSell = isSellTabActive();
     const refSample = document.querySelector('#limitPrice')?.value ?? '';
-    if (isBuy) {
+  	if (isBuy) {
       const inputBuy = document.querySelector('#limitTotal[placeholder="Tối thiểu 0,1"]');
       if (!inputBuy) return;
       const rawUser = (STATE.minFieldValue || "").trim();
@@ -312,12 +312,11 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     if (!minTimer) return;
     clearInterval(minTimer);
     minTimer = null;
-    console.log("[Set volume giao dịch] OFF");
+  	console.log("[Set volume giao dịch] OFF");
   }
 
-  // ---------- Price watcher (Sử dụng Polling + Global Click) ----------
   let priceWatcherTimer = null;
-  let observedSourceEl = null; // Dùng để theo dõi 'input' gõ tay
+  let observedSourceEl = null; 
   let suppressSet = false;
   let lastSeenValue = null;
 
@@ -333,152 +332,149 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const totalOff = Number(STATE.totalOffset ?? 0);
 
     if (isBuyTabActive() && STATE.autoBuyOffset) {
-      const targetPriceEl = document.querySelector("#limitPrice");
-      if (!targetPriceEl) return;
+    	const targetPriceEl = document.querySelector("#limitPrice");
+    	if (!targetPriceEl) return;
 
-      const desiredPriceNum = price + buyOff * 1e-8;
-      const desiredTotalNum = price - totalOff * 1e-8;
+    	const desiredPriceNum = price + buyOff * 1e-8;
+    	const desiredTotalNum = price - totalOff * 1e-8;
 
-      const outPrice = formatLike(sourceRaw, desiredPriceNum);
-      const outTotal = formatLike(sourceRaw, desiredTotalNum);
+    	const outPrice = formatLike(sourceRaw, desiredPriceNum);
+  	  const outTotal = formatLike(sourceRaw, desiredTotalNum);
 
-      suppressSet = true;
-      setInputValue(targetPriceEl, outPrice);
-      setInputValue(sourceEl, outTotal); // Ghi đè lên source
-      setTimeout(() => { suppressSet = false; }, 250);
+    	suppressSet = true;
+    	setInputValue(targetPriceEl, outPrice);
+    	setInputValue(sourceEl, outTotal); 
+  	  setTimeout(() => { suppressSet = false; }, 250);
 
-      lastSeenValue = outTotal; // Cập nhật giá trị đã set
-      console.log("[PriceWatcher] applied rule (Buy). source=", sourceRaw, " priceSet=", outPrice, " totalSet=", outTotal);
+    	lastSeenValue = outTotal; 
+    	console.log("[PriceWatcher] applied rule (Buy). source=", sourceRaw, " priceSet=", outPrice, " totalSet=", outTotal);
 
-    } else if (isSellTabActive() && STATE.autoSellOffset) {
-      const desiredNum = price - sellOff * 1e-8;
-      const out = formatLike(sourceRaw, desiredNum);
+  	} else if (isSellTabActive() && STATE.autoSellOffset) {
+    	const desiredNum = price - sellOff * 1e-8;
+    	const out = formatLike(sourceRaw, desiredNum);
 
-      suppressSet = true;
-      setInputValue(sourceEl, out); // Ghi đè lên source
-      setTimeout(() => { suppressSet = false; }, 250);
+    	suppressSet = true;
+  	  setInputValue(sourceEl, out); 
+    	setTimeout(() => { suppressSet = false; }, 250);
 
-      lastSeenValue = out; // Cập nhật giá trị đã set
-      console.log("[PriceWatcher] applied rule (Sell). source=", sourceRaw, " adjusted=", out);
+    	lastSeenValue = out; 
+  	  console.log("[PriceWatcher] applied rule (Sell). source=", sourceRaw, " adjusted=", out);
 
-    } else {
-      // Rule bị TẮT
-      lastSeenValue = sourceRaw; // Chỉ lưu giá trị nguồn
-      return;
-    }
+  	} else {
+    	lastSeenValue = sourceRaw; 
+    	return;
+  	}
   }
 
-  // Quản lý listener 'input' (chỉ dành cho gõ tay)
   function ensureObservedSourceEl() {
     let sourceSelector = null;
-    if (isBuyTabActive() && STATE.autoBuyOffset) {
-      sourceSelector = '#limitTotal[placeholder="Lệnh bán giới hạn"]';
-    } else if (isSellTabActive() && STATE.autoSellOffset) {
-      sourceSelector = "#limitPrice";
-    }
+  	if (isBuyTabActive() && STATE.autoBuyOffset) {
+    	sourceSelector = '#limitTotal[placeholder="Lệnh bán giới hạn"]';
+  	} else if (isSellTabActive() && STATE.autoSellOffset) {
+  	  sourceSelector = "#limitPrice";
+  	}
 
-    const newSourceEl = sourceSelector ? document.querySelector(sourceSelector) : null;
+  	const newSourceEl = sourceSelector ? document.querySelector(sourceSelector) : null;
 
-    if (observedSourceEl !== newSourceEl) {
-      try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
-      observedSourceEl = newSourceEl;
-      if (observedSourceEl) {
-        observedSourceEl.addEventListener("input", onSourceInput, { passive: true });
-      }
-    }
-    return observedSourceEl; // Trả về element hiện tại
+  	if (observedSourceEl !== newSourceEl) {
+    	try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
+    	observedSourceEl = newSourceEl;
+    	if (observedSourceEl) {
+    	  observedSourceEl.addEventListener("input", onSourceInput, { passive: true });
+    	}
+  	}
+  	return observedSourceEl; 
   }
 
-  // Được gọi khi người dùng GÕ TAY
   function onSourceInput(e) {
-    if (STOPPED) return;
-    if (suppressSet) return;
-    const el = e.target;
-    if (!el) return;
-    const cur = el.value ?? '';
-    applyRuleAndRecordSource(el, cur);
+  	if (STOPPED) return;
+  	if (suppressSet) return;
+  	const el = e.target;
+  	if (!el) return;
+  	const cur = el.value ?? '';
+  	applyRuleAndRecordSource(el, cur);
   }
 
-  // Hàm start watcher (logic polling)
+  function onTargetedClick(e) {
+    if (!priceWatcherTimer) return;
+
+    const isOrderBook = e.target.closest('div[data-bn-type="asks"], div[data-bn-type="bids"]');
+    const isTradeList = e.target.closest('div[aria-label="grid"][class*="ReactVirtualized__Grid"]');
+
+    if (isOrderBook || isTradeList) {
+        lastSeenValue = null;
+    }
+  }
+
   function startPriceWatcher() {
-    if (STOPPED) return;
-    if (priceWatcherTimer) return; // Đã chạy rồi
+  	if (STOPPED) return;
+  	if (priceWatcherTimer) return; 
 
-    // FIX 1: Reset lastSeenValue mỗi khi BẬT tính năng
-    lastSeenValue = null; 
-    
-    priceWatcherTimer = setInterval(() => {
-      try {
-        if (STOPPED) return;
+  	lastSeenValue = null; 
+  	
+  	priceWatcherTimer = setInterval(() => {
+    	try {
+    	  if (STOPPED) return;
+    	  const sourceEl = ensureObservedSourceEl();
+  	    if (!sourceEl) {
+    	    lastSeenValue = null; 
+    	    return;
+  	    }
+  	    if (!((isBuyTabActive() && STATE.autoBuyOffset) || (isSellTabActive() && STATE.autoSellOffset))) {
+  	      lastSeenValue = sourceEl.value ?? lastSeenValue;
+    	    return;
+  	    }
+    	  const cur = sourceEl.value ?? '';
+  	    if (suppressSet) return; 
+    	  if (cur === lastSeenValue) {
+    	    return; 
+    	  }
+    	  applyRuleAndRecordSource(sourceEl, cur);
+  	  } catch (err) {
+    	  console.warn("[PriceWatcher] poll error", err);
+  	  }
+  	}, 200); 
 
-        const sourceEl = ensureObservedSourceEl();
+    document.addEventListener('click', onTargetedClick, true);
 
-        if (!sourceEl) {
-          lastSeenValue = null; 
-          return;
-        }
-
-        if (!((isBuyTabActive() && STATE.autoBuyOffset) || (isSellTabActive() && STATE.autoSellOffset))) {
-          lastSeenValue = sourceEl.value ?? lastSeenValue;
-          return;
-        }
-
-        const cur = sourceEl.value ?? '';
-        if (suppressSet) return; 
-        
-        if (cur === lastSeenValue) {
-          return; 
-        }
-        
-        // Nếu KHÁC NHAU (hoặc lastSeenValue là null), áp dụng rule
-        applyRuleAndRecordSource(sourceEl, cur);
-
-      } catch (err) {
-        console.warn("[PriceWatcher] poll error", err);
-      }
-    }, 200); // Tốc độ polling
-
-    const initialSourceEl = ensureObservedSourceEl();
-    if (initialSourceEl) {
-      try {
-        const cur = initialSourceEl.value ?? '';
-        const price = parseNumber(cur);
-        if (Number.isFinite(price) && price > 0) {
-          applyRuleAndRecordSource(initialSourceEl, cur);
-        }
-      } catch (e) { }
-    }
-
-    console.log("[PriceWatcher] started (Polling Mode)");
+  	const initialSourceEl = ensureObservedSourceEl();
+  	if (initialSourceEl) {
+    	try {
+    	  const cur = initialSourceEl.value ?? '';
+    	  const price = parseNumber(cur);
+  	    if (Number.isFinite(price) && price > 0) {
+    	    applyRuleAndRecordSource(initialSourceEl, cur);
+  	    }
+  	  } catch (e) { }
+  	}
+  	console.log("[PriceWatcher] started (Optimized Polling Mode)");
   }
 
   function stopPriceWatcher() {
-    if (priceWatcherTimer) { 
+  	if (priceWatcherTimer) { 
       clearInterval(priceWatcherTimer); 
       priceWatcherTimer = null; 
     }
-    try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
-    observedSourceEl = null;
-    suppressSet = false;
-    lastSeenValue = null;
-    lastBuySourcePrice = null;
-    console.log("[PriceWatcher] stopped");
+  	try { if (observedSourceEl) observedSourceEl.removeEventListener("input", onSourceInput); } catch (e) { }
+    document.removeEventListener('click', onTargetedClick, true);
+
+  	observedSourceEl = null;
+  	suppressSet = false;
+  	lastSeenValue = null;
+  	lastBuySourcePrice = null;
+  	console.log("[PriceWatcher] stopped");
   }
 
+  // ---------- STOP ----------
   function hardStop() {
-    STOPPED = true;
-    stopActionClick();
-    stopMin();
-    stopPriceWatcher();
-    stopSell();
-    console.log("[AutoAlpha] HARD STOP — timers/listeners stopped and state cleared");
+  	STOPPED = true;
+  	stopActionClick();
+  	stopMin();
+  	stopPriceWatcher();
+  	stopSell();
+  	console.log("[AutoAlpha] HARD STOP — timers/listeners stopped and state cleared");
   }
 
-  document.addEventListener('click', (e) => {
-    if (priceWatcherTimer) {
-        lastSeenValue = null;
-    }
-  }, true);
-
+  // ---------- Start ----------
   loadStateForOrigin();
 }
