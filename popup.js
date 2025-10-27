@@ -12,8 +12,8 @@ async function loadState(origin) {
     chrome.storage.local.get([origin], (res) => {
       resolve(res[origin] || {
         autoLimitTotalSell: false, totalOffset: 0,
-        autoBuyOffset: false, buyOffset: 1,
-        autoSellOffset: false, sellOffset: 1,
+        autoBuyOffset: false, buyOffset: 0, 
+        autoSellOffset: false, sellOffset: 0,
         autoConfirm: false,
         autoMinField: false, minFieldValue: ""
       });
@@ -63,9 +63,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (toggleTotal) toggleTotal.checked = !!state.autoLimitTotalSell;
   if (totalOffsetEl) totalOffsetEl.value = Number((state.totalOffset ?? 0));
   if (toggleBuy) toggleBuy.checked = !!state.autoBuyOffset;
-  if (buyOffsetEl) buyOffsetEl.value = Number(state.buyOffset || 1);
+  if (buyOffsetEl) buyOffsetEl.value = Number(state.buyOffset ?? 0);
   if (toggleSell) toggleSell.checked = !!state.autoSellOffset;
-  if (sellOffsetEl) sellOffsetEl.value = Number(state.sellOffset || 1);
+  if (sellOffsetEl) sellOffsetEl.value = Number(state.sellOffset ?? 0);
   if (toggleMin) toggleMin.checked = !!state.autoMinField;
   if (minValueEl) minValueEl.value = state.minFieldValue || "";
   if (toggleConfirm) toggleConfirm.checked = !!state.autoConfirm;
@@ -94,19 +94,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       el?.removeAttribute("title");
     }
     let totalOffset = parseInt(totalOffsetEl?.value ?? "0", 10);
-    let buyOffset = parseInt(buyOffsetEl?.value ?? "1", 10);
-    let sellOffset = parseInt(sellOffsetEl?.value ?? "1", 10);
+    let buyOffset = parseInt(buyOffsetEl?.value ?? "0", 10);
+    let sellOffset = parseInt(sellOffsetEl?.value ?? "0", 10);
     const invalids = [];
     if (!Number.isFinite(totalOffset) || totalOffset < 0) invalids.push(totalOffsetEl);
-    if (!Number.isFinite(buyOffset) || buyOffset < 1) invalids.push(buyOffsetEl);
-    if (!Number.isFinite(sellOffset) || sellOffset < 1) invalids.push(sellOffsetEl);
+    if (!Number.isFinite(buyOffset) || buyOffset < 0) invalids.push(buyOffsetEl);
+    if (!Number.isFinite(sellOffset) || sellOffset < 0) invalids.push(sellOffsetEl);
     if (invalids.length) {
       for (const el of invalids) {
         if (!el) continue;
         el.classList.add("invalid");
         el.setAttribute("title", "Giá trị không hợp lệ");
       }
-      alert("Buy/Sell offset phải ≥ 1; Total offset phải ≥ 0");
+      alert("Buy/Sell/Total offset phải ≥ 0");
       invalids[0]?.focus();
       return;
     }

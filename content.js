@@ -14,9 +14,9 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     autoLimitTotalSell: false,
     totalOffset: 0,
     autoBuyOffset: false,
-    buyOffset: 1,
+    buyOffset: 0,
     autoSellOffset: false,
-    sellOffset: 1,
+    sellOffset: 0,
     autoConfirm: false,
     autoMinField: false,
     minFieldValue: ""
@@ -33,10 +33,10 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     STATE.totalOffset = Number(s?.totalOffset ?? 0) || 0;
 
     STATE.autoBuyOffset = !!s.autoBuyOffset;
-    STATE.buyOffset = Number(s?.buyOffset || 1) || 1;
+    STATE.buyOffset = Number(s?.buyOffset ?? 0) || 0;
 
     STATE.autoSellOffset = !!s.autoSellOffset;
-    STATE.sellOffset = Number(s?.sellOffset || 1) || 1;
+    STATE.sellOffset = Number(s?.sellOffset ?? 0) || 0;
 
     STATE.autoConfirm = !!s.autoConfirm;
     STATE.autoMinField = !!s?.autoMinField;
@@ -327,8 +327,8 @@ if (!(location.protocol.startsWith('http') && isBinanceDomain && isAlphaTokenPat
     const price = parseNumber(sourceRaw);
     if (!Number.isFinite(price) || price <= 0) return;
 
-    const buyOff = Math.max(1, Number(STATE.buyOffset || 1));
-    const sellOff = Math.max(1, Number(STATE.sellOffset || 1));
+    const buyOff = Number(STATE.buyOffset ?? 0);
+    const sellOff = Number(STATE.sellOffset ?? 0);
     const totalOff = Number(STATE.totalOffset ?? 0);
 
     if (isBuyTabActive() && STATE.autoBuyOffset) {
